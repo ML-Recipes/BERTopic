@@ -77,6 +77,7 @@ class BERTopic:
                  hdbscan_model: hdbscan.HDBSCAN = None,
                  vectorizer_model: CountVectorizer = None,
                  verbose: bool = False,
+                 preprocessor = None
                  ):
         """BERTopic initialization
 
@@ -121,6 +122,7 @@ class BERTopic:
             umap_model: Pass in a UMAP model to be used instead of the default
             hdbscan_model: Pass in a hdbscan.HDBSCAN model to be used instead of the default
             vectorizer_model: Pass in a CountVectorizer instead of the default
+            preprocessor: preprocessor object to clean textual content
         """
         # Topic-based parameters
         if top_n_words > 30:
@@ -131,6 +133,9 @@ class BERTopic:
         self.low_memory = low_memory
         self.calculate_probabilities = calculate_probabilities
         self.verbose = verbose
+        self.preprocessor = preprocessor
+
+        self.prep_docs = []
 
         # Embedding model
         self.language = language if not embedding_model else None
@@ -279,6 +284,25 @@ class BERTopic:
 
         # Cluster UMAP embeddings with HDBSCAN
         documents, probabilities = self._cluster_embeddings(umap_embeddings, documents)
+
+        if self.preprocessor:
+            # Extract list of documents, ids, topic_ids
+            ids = documents['ID'].tolist()
+            docs = documents['Document'].tolist()
+            topic_ids = documents['Topic'].tolist()
+            
+            # Apply cleaning
+            docs = self.preprocessor.preprocess(docs)
+            self.prep_docs = docs
+
+            # Generate tuple list as ids, preprocessed docs, topic_ids
+            zipped_data = zip(docs, ids, topic_ids)
+            data = list(map(list, zipped_data))
+
+            # Convert back to DataFrame
+            documents = pd.DataFrame(data, columns=['Document', 'ID', 'Topic'])
+
+        self.preprocessor = None
 
         # Extract topics by calculating c-TF-IDF
         self._extract_topics(documents)
